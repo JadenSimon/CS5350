@@ -59,8 +59,8 @@ class DTFactory:
 		if same_label is not None:
 			return Node(same_label)
 
-		# If max depth is reached, or names is only size 1, return leaf with most common label
-		if max_depth == 0 or len(names) == 1:
+		# If max depth is reached, or names is exhausted, return leaf with most common label
+		if max_depth == 0 or len(list(filter(None, names))) == 1:
 			return Node(DTFactory.common_value(examples, label_index))
 
 		# Now begin the splitting process by choosing best attribute
@@ -74,20 +74,34 @@ class DTFactory:
 		new_names[attribute_index] = ""
 		new_values[attribute_index] = []
 
-		for value in possible_values[attribute_index]:
+		# If value type is a list (and thus a characteristic) treat it normally
+		if isinstance(possible_values[attribute_index], list):
+			for value in possible_values[attribute_index]:
+				# Create a subset of examples that share the same value
+				subset =  DTFactory.shared_values(examples, attribute_index, value)
 
-			# Create a subset of examples that share the same value
-			subset =  DTFactory.shared_values(examples, attribute_index, value)
+				new_node = None
 
-			new_node = None
+				# Empty subset, add leaf for most common label
+				if len(subset) == 0:
+					new_node = Node(DTFactory.common_value(examples, label_index))
+				else:
+					new_node = DTFactory.id3(subset, new_names, new_values, gain_function, max_depth - 1)
 
-			# Empty subset, add leaf for most common label
-			if len(subset) == 0:
-				new_node = Node(DTFactory.common_value(examples, label_index))
-			else:
-				new_node = DTFactory.id3(subset, new_names, new_values, gain_function, max_depth - 1)
+				new_root.add_child(new_node, value)
 
-			new_root.add_child(new_node, value)
+		elif possible_values[attribute_index] == int or possible_values[attribute_index] == float:
+			# We will choose the median of the numerical values, then generate two subsets
+			threshold, subset1, subset2 = DTFactory.split_numerical(examples, attribute_index)
+
+			lt_node = DTFactory.id3(subset1, new_names, new_values, gain_function, max_depth - 1)
+			gt_node = DTFactory.id3(subset2, new_names, new_values, gain_function, max_depth - 1)
+
+			new_root.add_child(lt_node, " < " + str(threshold))
+			new_root.add_child(gt_node, ">= " + str(threshold))
+		else:
+			print("Invalid possible value in DTFactory")
+			return None
 
 		return new_root
 
@@ -106,6 +120,21 @@ class DTFactory:
 
 		return max(track, key=track.get)
 
+	# Returns the median of a list
+	# Assumes it's already sorted
+	@staticmethod
+	def median(lst):
+		n = len(lst)
+		half = n//2
+
+		if n < 1: 		
+			return None
+		if n % 2 == 1: 	
+			return lst[half]
+		else:
+			return sum(lst[half-1:half+1]) / 2.0
+
+
 	# Returns the best attribute from a list of examples using a gain function
 	@staticmethod
 	def best_attribute(examples, names, possible_values, gain_function):
@@ -116,14 +145,18 @@ class DTFactory:
 				attribute_index = names.index(attribute)
 
 				# We must iterate over all possible values for the given attribute
-				for value in possible_values[attribute_index]:
-					subset = DTFactory.shared_values(examples, attribute_index, value)
-					proportion = float(len(subset)) / len(examples)
+				if isinstance(possible_values[attribute_index], list):
+					for value in possible_values[attribute_index]:
+						subset = DTFactory.shared_values(examples, attribute_index, value)
+						proportion = float(len(subset)) / len(examples)
 
-					if attribute not in attribute_gains:
-						attribute_gains[attribute] = proportion * gain_function(subset, names.index("label"))
-					else:
-						attribute_gains[attribute] += proportion * gain_function(subset, names.index("label"))
+						if attribute not in attribute_gains:
+							attribute_gains[attribute] = proportion * gain_function(subset, names.index("label"))
+						else:
+							attribute_gains[attribute] += proportion * gain_function(subset, names.index("label"))
+				elif possible_values[attribute_index] == int or possible_values[attribute_index] == float:
+					# If we have a possible value that is numerical, then we can choose to split perfectly on it
+					return names[attribute_index]
 
 		return min(attribute_gains, key=attribute_gains.get)
 
@@ -136,6 +169,26 @@ class DTFactory:
 				subset.append(example)
 
 		return subset
+
+	# Splits a set of numerical data in half using its median, returns the threshold as well as the two split sets
+	@staticmethod
+	def split_numerical(examples, attribute_index):
+		numerical_data = []
+		for example in examples:
+			numerical_data.append(example[attribute_index])
+		numerical_data.sort()
+		median = DTFactory.median(numerical_data)
+		lt_set = []
+		gt_set = []
+
+		for example in examples:
+			if example[attribute_index] < median:
+				lt_set.append(example)
+			else:
+				gt_set.append(example)
+
+		return median, lt_set, gt_set
+
 
 	# Creates a new tree using the entropy calculation
 	@staticmethod
@@ -275,6 +328,16 @@ class Link:
 		return self.node.height()
 
 
+def import_data(name):
+	data = []
+
+	with open(name) as f:
+		for line in f:
+			data.append(line.strip().split(','))
+
+	return data
+
+
 examples = []
 examples.append(["S", "H", "H", "W", "No"])
 examples.append(["S", "H", "H", "S", "No"])
@@ -291,8 +354,23 @@ examples.append(["O", "M", "H", "S", "Yes"])
 examples.append(["O", "H", "N", "W", "Yes"])
 examples.append(["R", "M", "H", "S", "No"])
 
-
 names = ["O", "T", "H", "W", "label"]
 possible_values = [["S", "O", "R"], ["H", "M", "C"], ["H", "N", "L"], ["S", "W"], ["No", "Yes"]]
-dt = DTFactory.dt_entropy(examples, names, possible_values, 10)
+
+
+examples2 = []
+examples2.append(["A", 1, 0])
+examples2.append(["A", 2, 0])
+examples2.append(["B", 1, 1])
+examples2.append(["B", 2, 2])
+examples2.append(["C", 1, 2])
+examples2.append(["C", 2, 4])
+names2 = ["Letter", "Number", "label"]
+possible_values2 = [["A", "B", "C"], int, [0, 1, 2]]
+
+car_examples = import_data("car_train.csv")
+car_names = ["buying", "maint", "doors", "persons", "lug_boot", "safety", "label"]
+car_values = [["vhigh", "high", "med", "low"], ["vhigh", "high", "med", "low"], [2, 3, 4, "5more"], [2, 4, "more"], ["small", "med", "big"], ["low", "med", "high"], ["unacc", "acc", "good", "vgood"]]
+
+dt = DTFactory.dt_entropy(car_examples, car_names, car_values, 16)
 print(dt)
