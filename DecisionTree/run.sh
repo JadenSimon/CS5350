@@ -1,0 +1,3 @@
+#!/bin/bash
+echo Executing python script...
+python decision_tree.py

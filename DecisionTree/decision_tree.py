@@ -470,19 +470,22 @@ def run_experiment(training_data, test_data, names, possible_values, max_depth):
 		entropy_dt = DTFactory.dt_entropy(training_data, names, possible_values, i + 1)
 		majority_dt = DTFactory.dt_majority(training_data, names, possible_values, i + 1)
 		gini_dt = DTFactory.dt_gini(training_data, names, possible_values, i + 1)
-		trng_entropy_err = round(compute_error(entropy_dt, training_data), 4)
-		test_entropy_err = round(compute_error(entropy_dt, test_data), 4)
-		trng_majority_err = round(compute_error(majority_dt, training_data), 4)
-		test_majority_err = round(compute_error(majority_dt, test_data), 4)
-		trng_gini_err = round(compute_error(gini_dt, training_data), 4)
-		test_gini_err = round(compute_error(gini_dt, test_data), 4)
+		trng_entropy_err = round(100 * compute_error(entropy_dt, training_data), 2)
+		test_entropy_err = round(100 * compute_error(entropy_dt, test_data), 2)
+		trng_majority_err = round(100 * compute_error(majority_dt, training_data), 2)
+		test_majority_err = round(100 * compute_error(majority_dt, test_data), 2)
+		trng_gini_err = round(100 * compute_error(gini_dt, training_data), 2)
+		test_gini_err = round(100 * compute_error(gini_dt, test_data), 2)
 
 		if (i + 1) != entropy_dt.root.height() - 1:
 			print "Max tree depth reached!"
 
-		print "\tDepth " + str(i + 1) + ":" 
-		print "\t\t Training: Entropy-> " + str(trng_entropy_err) + " Majority-> " + str(trng_majority_err) + " Gini-> " + str(trng_gini_err)
-		print "\t\t Test: Entropy-> " + str(test_entropy_err) + " Majority-> " + str(test_majority_err) + " Gini-> " + str(test_gini_err)
+		if LATEX_FORMAT == False:
+			print "\tDepth " + str(i + 1) + ":" 
+			print "\t\t Training: Entropy-> " + str(trng_entropy_err) + " Majority-> " + str(trng_majority_err) + " Gini-> " + str(trng_gini_err)
+			print "\t\t Test: Entropy-> " + str(test_entropy_err) + " Majority-> " + str(test_majority_err) + " Gini-> " + str(test_gini_err)
+		else:
+			print "\t\t" + str(i + 1) + "\t & " + str(trng_entropy_err) + "\%\t & " + str(test_entropy_err) + "\%\t & " + str(trng_majority_err) + "\%\t & " + str(test_majority_err) + "\%\t & " + str(trng_gini_err) + "\%\t & " + str(test_gini_err) + "\%\t \\" + "\\" + " \hline"
 
 
 
@@ -519,7 +522,7 @@ names2 = ["Letter", "Number", "label"]
 possible_values2 = [["A", "B", "C"], int, [0, 1, 2]]
 
 # Some definition stuff
-REPLACE_UNKNOWNS = False # True means unknowns will be replaced by the most common value
+LATEX_FORMAT = False	  # Set to true allows easy pasting into Latex
 
 car_examples = import_data("car_train.csv")
 car_test = import_data("car_test.csv")
