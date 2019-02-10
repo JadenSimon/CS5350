@@ -90,12 +90,20 @@ class DTFactory:
 
 				new_root.add_child(new_node, value)
 
-		elif possible_values[attribute_index] == int or possible_values[attribute_index] == float:
+		elif isinstance(possible_values[attribute_index], float):
 			# We will choose the median of the numerical values, then generate two subsets
-			threshold, subset1, subset2 = DTFactory.split_numerical(examples, attribute_index)
+			threshold = possible_values[attribute_index]
+			subset1, subset2 = DTFactory.split_numerical(examples, attribute_index, threshold)
 
-			lt_node = DTFactory.id3(subset1, new_names, new_values, gain_function, max_depth - 1)
-			gt_node = DTFactory.id3(subset2, new_names, new_values, gain_function, max_depth - 1)
+			if len(subset1) == 0:
+				lt_node = Node(DTFactory.common_value(examples, label_index))
+			else:
+				lt_node = DTFactory.id3(subset1, new_names, new_values, gain_function, max_depth - 1)
+
+			if len(subset2) == 0:
+				gt_node = Node(DTFactory.common_value(examples, label_index))
+			else:
+				gt_node = DTFactory.id3(subset2, new_names, new_values, gain_function, max_depth - 1)
 
 			new_root.add_child(lt_node, " < " + str(threshold))
 			new_root.add_child(gt_node, ">= " + str(threshold))
@@ -126,6 +134,7 @@ class DTFactory:
 	def median(lst):
 		n = len(lst)
 		half = n//2
+		lst = list(map(int, lst))
 
 		if n < 1: 		
 			return None
@@ -154,9 +163,12 @@ class DTFactory:
 							attribute_gains[attribute] = proportion * gain_function(subset, names.index("label"))
 						else:
 							attribute_gains[attribute] += proportion * gain_function(subset, names.index("label"))
-				elif possible_values[attribute_index] == int or possible_values[attribute_index] == float:
-					# If we have a possible value that is numerical, then we can choose to split perfectly on it
-					return names[attribute_index]
+				elif isinstance(possible_values[attribute_index], float):
+					threshold = possible_values[attribute_index]
+					subset1, subset2 = DTFactory.split_numerical(examples, attribute_index, threshold)
+					attribute_gains[attribute] = 0
+					attribute_gains[attribute] += (float(len(subset1)) / len(examples)) * gain_function(subset1, names.index("label"))
+					attribute_gains[attribute] += (float(len(subset2)) / len(examples)) * gain_function(subset2, names.index("label"))
 
 		return min(attribute_gains, key=attribute_gains.get)
 
@@ -170,24 +182,19 @@ class DTFactory:
 
 		return subset
 
-	# Splits a set of numerical data in half using its median, returns the threshold as well as the two split sets
+	# Splits a set of numerical data using a threshold
 	@staticmethod
-	def split_numerical(examples, attribute_index):
-		numerical_data = []
-		for example in examples:
-			numerical_data.append(example[attribute_index])
-		numerical_data.sort()
-		median = DTFactory.median(numerical_data)
+	def split_numerical(examples, attribute_index, threshold):
 		lt_set = []
 		gt_set = []
 
 		for example in examples:
-			if example[attribute_index] < median:
+			if float(example[attribute_index]) < threshold:
 				lt_set.append(example)
 			else:
 				gt_set.append(example)
 
-		return median, lt_set, gt_set
+		return lt_set, gt_set
 
 
 	# Creates a new tree using the entropy calculation
@@ -212,7 +219,6 @@ class DTFactory:
 					e += -1 * (float(count) / len(examples)) * math.log(float(count) / len(examples), 2)
 
 			return e
-
 
 		root = DTFactory.id3(examples, names, possible_values, entropy, max_depth)
 
@@ -278,6 +284,38 @@ class DTFactory:
 		root = DTFactory.id3(examples, names, possible_values, gini_index, max_depth)
 
 		return DecisionTree(root, names)
+
+	# Does some preprocessing on the possibles values, using the median of the attribute if it is a 
+	# 'int' value or replacing unknowns if enabled
+	@staticmethod
+	def preprocess_data(examples, test_data, values, replace_unknowns):
+		# Replace all ints with the median of the values
+		for i in range(len(values)):
+			if values[i] == int:
+				num_data = []
+				for example in examples:
+					num_data.append(example[i])
+				values[i] = float(DTFactory.median(num_data))
+
+		# Replace unknowns
+		if replace_unknowns:
+			# Get a list of most common values
+			common_values = []
+			for i in range(len(examples[0])):
+				common_values.append(DTFactory.common_value(examples, i))
+
+			# Replace unknowns in the training data
+			for example in examples:
+				for i in range(len(example)):
+					if example[i] == "unknown":
+						example[i] = common_values[i]
+
+			# Replace unknowns in the testing data
+			for example in test_data:
+				for i in range(len(example)):
+					if example[i] == "unknown":
+						example[i] = common_values[i]
+
 
 
 # General Node class for use in a tree data structure
@@ -355,9 +393,21 @@ class Node:
 			if isinstance(child, Link):
 				if str(child.label) == value:
 					return child.node
+				elif str(child.label)[0:3] == " < ":
+					if float(value) < float(str(child.label)[3:]):
+						return child.node
+				elif str(child.label)[0:3] == ">= ":
+					if float(value) >= float(str(child.label)[3:]):
+						return child.node 
 			else:
 				if str(child.value) == value:
 					return child
+				elif str(child.value)[0:3] == " < ":
+					if float(value) < float(str(child.value)[3:]):
+						return child
+				elif str(child.value)[0:3] == ">= ":
+					if float(value) >= float(str(child.value)[3:]):
+						return child
 
 		return None
 
@@ -390,28 +440,13 @@ class Link:
 
 
 # Imports data into a usable format.
-# If replace_unknowns is true then all 'unknown' values will be replaced
-# by the most common value for that attribute.
-def import_data(name, replace_unknowns):
+def import_data(name):
 	data = []
 
 	# Load the data
 	with open(name) as f:
 		for line in f:
 			data.append(line.strip().split(','))
-
-	# Replace unknowns
-	if replace_unknowns:
-		# Get a list of most common values
-		common_values = []
-		for i in range(len(examples[0])):
-			common_values[i] = DTFactory.common_value(examples, i)
-
-		# Replace unknowns
-		for example in examples:
-			for i in range(len(example)):
-				if example[i] == "unknown":
-					example[i] = common_values[i]
 
 	return data
 
@@ -441,6 +476,9 @@ def run_experiment(training_data, test_data, names, possible_values, max_depth):
 		test_majority_err = round(compute_error(majority_dt, test_data), 4)
 		trng_gini_err = round(compute_error(gini_dt, training_data), 4)
 		test_gini_err = round(compute_error(gini_dt, test_data), 4)
+
+		if (i + 1) != entropy_dt.root.height() - 1:
+			print "Max tree depth reached!"
 
 		print "\tDepth " + str(i + 1) + ":" 
 		print "\t\t Training: Entropy-> " + str(trng_entropy_err) + " Majority-> " + str(trng_majority_err) + " Gini-> " + str(trng_gini_err)
@@ -480,13 +518,42 @@ examples2.append(["C", 2, 4])
 names2 = ["Letter", "Number", "label"]
 possible_values2 = [["A", "B", "C"], int, [0, 1, 2]]
 
-car_examples = import_data("car_train.csv", False)
-car_test = import_data("car_test.csv", False)
+# Some definition stuff
+REPLACE_UNKNOWNS = False # True means unknowns will be replaced by the most common value
+
+car_examples = import_data("car_train.csv")
+car_test = import_data("car_test.csv")
 car_names = ["buying", "maint", "doors", "persons", "lug_boot", "safety", "label"]
-car_values = [["vhigh", "high", "med", "low"], ["vhigh", "high", "med", "low"], [2, 3, 4, "5more"], [2, 4, "more"], ["small", "med", "big"], ["low", "med", "high"], ["unacc", "acc", "good", "vgood"]]
+car_values = [["vhigh", "high", "med", "low", "beep"], ["vhigh", "high", "med", "low"], [2, 3, 4, "5more"], [2, 4, "more"], ["small", "med", "big"], ["low", "med", "high"], ["unacc", "acc", "good", "vgood"]]
+bank_examples = import_data("bank_train.csv")
+bank_test = import_data("bank_test.csv")
+bank_names = ["age", "job", "marital", "education", "default", "balance", "housing", "loan", "contact", "day", "month", "duration", "campaign", "pdays", "previous", "poutcome", "label"]
+bank_values = []
+bank_values.append(int)
+bank_values.append(["admin.", "unknown", "unemployed", "management", "housemaid", "entrepreneur", "student", "blue-collar", "self-employed", "retired", "technician", "services"])
+bank_values.append(["married", "divorced", "single"])
+bank_values.append(["unknown", "secondary", "primary", "tertiary"])
+bank_values.append(["yes", "no"])
+bank_values.append(int)
+bank_values.append(["yes", "no"])
+bank_values.append(["yes", "no"])
+bank_values.append(["unknown", "telephone", "cellular"])
+bank_values.append(int)
+bank_values.append(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"])
+bank_values.append(int)
+bank_values.append(int)
+bank_values.append(int)
+bank_values.append(int)
+bank_values.append(["unknown", "other", "failure", "success"])
+bank_values.append(["yes", "no"])
 
-
-dt = DTFactory.dt_gini(examples, names, possible_values, 6)
-#print(dt)
 print("Car Data Set")
 run_experiment(car_examples, car_test, car_names, car_values, 6)
+
+print("Bank Data Set (With Unknowns)")
+DTFactory.preprocess_data(bank_examples, bank_test, bank_values, False)
+run_experiment(bank_examples, bank_test, bank_names, bank_values, 16)
+
+print("Bank Data Set (Without Unknowns)")
+DTFactory.preprocess_data(bank_examples, bank_test, bank_values, True)
+run_experiment(bank_examples, bank_test, bank_names, bank_values, 16)
