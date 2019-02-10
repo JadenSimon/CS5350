@@ -165,7 +165,7 @@ class DTFactory:
 	def shared_values(examples, attribute_index, value):
 		subset = []
 		for example in examples:
-			if example[attribute_index] == value:
+			if str(example[attribute_index]) == str(value):
 				subset.append(example)
 
 		return subset
@@ -215,6 +215,67 @@ class DTFactory:
 
 
 		root = DTFactory.id3(examples, names, possible_values, entropy, max_depth)
+
+		return DecisionTree(root, names)
+
+	# Creates a new tree using the majority error calculation
+	@staticmethod
+	def dt_majority(examples, names, possible_values, max_depth):
+
+		# ME gains function
+		def majority_error(examples, label_index):
+			value_counts = {}
+
+			if len(examples) == 0:
+				return 0 
+
+			# Count the label values
+			for example in examples:
+				value = example[label_index]
+
+				if value not in value_counts:
+					value_counts[value] = 1
+				else:
+					value_counts[value] += 1
+
+			majority_count = max(value_counts.values())
+
+			return 1 - (majority_count / len(examples))
+
+
+		root = DTFactory.id3(examples, names, possible_values, majority_error, max_depth)
+
+		return DecisionTree(root, names)
+
+	# Creates a new tree using the gini index calculation
+	@staticmethod
+	def dt_gini(examples, names, possible_values, max_depth):
+
+		# Gini index gains function
+		def gini_index(examples, label_index):
+			value_counts = {}
+
+			if len(examples) == 0:
+				return 0 
+
+			# Count the label values
+			for example in examples:
+				value = example[label_index]
+
+				if value not in value_counts:
+					value_counts[value] = 1
+				else:
+					value_counts[value] += 1
+
+			gi = 1
+			for count in value_counts.values():
+				if count != 0:
+					gi -= (float(count) / len(examples))**2
+
+			return gi
+
+
+		root = DTFactory.id3(examples, names, possible_values, gini_index, max_depth)
 
 		return DecisionTree(root, names)
 
@@ -292,10 +353,10 @@ class Node:
 	def next_node(self, value):
 		for child in self.children:
 			if isinstance(child, Link):
-				if child.label == value:
+				if str(child.label) == value:
 					return child.node
 			else:
-				if child.value == value:
+				if str(child.value) == value:
 					return child
 
 		return None
@@ -328,14 +389,65 @@ class Link:
 		return self.node.height()
 
 
-def import_data(name):
+# Imports data into a usable format.
+# If replace_unknowns is true then all 'unknown' values will be replaced
+# by the most common value for that attribute.
+def import_data(name, replace_unknowns):
 	data = []
 
+	# Load the data
 	with open(name) as f:
 		for line in f:
 			data.append(line.strip().split(','))
 
+	# Replace unknowns
+	if replace_unknowns:
+		# Get a list of most common values
+		common_values = []
+		for i in range(len(examples[0])):
+			common_values[i] = DTFactory.common_value(examples, i)
+
+		# Replace unknowns
+		for example in examples:
+			for i in range(len(example)):
+				if example[i] == "unknown":
+					example[i] = common_values[i]
+
 	return data
+
+# Finds the error rate of a decision tree on test data
+def compute_error(dt, test_data):
+	errors = 0
+
+	# Iterate over all examples
+	for example in test_data:
+		label = dt.find_label(example)
+		if label != example[-1]:
+			errors += 1
+
+	return float(errors) / len(test_data)
+
+
+# Runs all three types of gain functions on the data from 1 depth to max_depth
+def run_experiment(training_data, test_data, names, possible_values, max_depth):
+	print "Running experiment for max depth of " + str(max_depth) + ":"
+	for i in range(max_depth):
+		entropy_dt = DTFactory.dt_entropy(training_data, names, possible_values, i + 1)
+		majority_dt = DTFactory.dt_majority(training_data, names, possible_values, i + 1)
+		gini_dt = DTFactory.dt_gini(training_data, names, possible_values, i + 1)
+		trng_entropy_err = round(compute_error(entropy_dt, training_data), 4)
+		test_entropy_err = round(compute_error(entropy_dt, test_data), 4)
+		trng_majority_err = round(compute_error(majority_dt, training_data), 4)
+		test_majority_err = round(compute_error(majority_dt, test_data), 4)
+		trng_gini_err = round(compute_error(gini_dt, training_data), 4)
+		test_gini_err = round(compute_error(gini_dt, test_data), 4)
+
+		print "\tDepth " + str(i + 1) + ":" 
+		print "\t\t Training: Entropy-> " + str(trng_entropy_err) + " Majority-> " + str(trng_majority_err) + " Gini-> " + str(trng_gini_err)
+		print "\t\t Test: Entropy-> " + str(test_entropy_err) + " Majority-> " + str(test_majority_err) + " Gini-> " + str(test_gini_err)
+
+
+
 
 
 examples = []
@@ -368,9 +480,13 @@ examples2.append(["C", 2, 4])
 names2 = ["Letter", "Number", "label"]
 possible_values2 = [["A", "B", "C"], int, [0, 1, 2]]
 
-car_examples = import_data("car_train.csv")
+car_examples = import_data("car_train.csv", False)
+car_test = import_data("car_test.csv", False)
 car_names = ["buying", "maint", "doors", "persons", "lug_boot", "safety", "label"]
 car_values = [["vhigh", "high", "med", "low"], ["vhigh", "high", "med", "low"], [2, 3, 4, "5more"], [2, 4, "more"], ["small", "med", "big"], ["low", "med", "high"], ["unacc", "acc", "good", "vgood"]]
 
-dt = DTFactory.dt_entropy(car_examples, car_names, car_values, 16)
-print(dt)
+
+dt = DTFactory.dt_gini(examples, names, possible_values, 6)
+#print(dt)
+print("Car Data Set")
+run_experiment(car_examples, car_test, car_names, car_values, 6)
