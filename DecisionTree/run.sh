@@ -1,3 +1,3 @@
 #!/bin/bash
 echo Executing python script...
-python decision_tree.py
+python hw1_test.py

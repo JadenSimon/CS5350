@@ -16,6 +16,6 @@ Additional notes:
 Since some training or testing data has unknowns or numeric data, it is necessary to preprocess the training
 and testing data sets using the 'preprocess_data' method of DTFactory. This will replace numeric fields with
 a binary option instead using the median values as a threshold. Addtionally, unknowns will be replaced by
-the most common value if the parameter is set. Examples of usage can be found at the bottom of the library.
+the most common value if the parameter is set. Examples of usage can be found in the hw1_test file.
 
 
