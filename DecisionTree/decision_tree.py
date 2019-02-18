@@ -3,6 +3,10 @@
 # Date: 2/5/2019
 # Description: Implements the ID3 algorithm for creating decision trees
 
+# Updated 2/18/2019
+# * Added weight vector to training set
+# * Decision trees can now be learned with a weighted data set
+
 import math
 
 # A decision tree. Stores the root node and allows finding labels for a given example.
@@ -41,11 +45,12 @@ class DecisionTree:
 
 # Decision tree factory class. Creates a new decision tree from the specified parameters.
 # Training set should be provided as a list of examples.
+# Weights should be a list of floats that describe the weight of each example.
 class DTFactory:
 
 	#ID3 algorithm
 	@staticmethod
-	def id3(examples, names, possible_values, gain_function, max_depth):
+	def id3(examples, weights, names, possible_values, gain_function, max_depth):
 		label_index = names.index("label")
 
 		# Check for all same label examples
@@ -61,10 +66,10 @@ class DTFactory:
 
 		# If max depth is reached, or names is exhausted, return leaf with most common label
 		if max_depth == 0 or len(list(filter(None, names))) == 1:
-			return Node(DTFactory.common_value(examples, label_index))
+			return Node(DTFactory.common_value(examples, weights, label_index))
 
 		# Now begin the splitting process by choosing best attribute
-		attribute = DTFactory.best_attribute(examples, names, possible_values, gain_function)
+		attribute = DTFactory.best_attribute(examples, weights, names, possible_values, gain_function)
 		attribute_index = names.index(attribute)
 		new_root = Node(attribute)
 
@@ -78,32 +83,32 @@ class DTFactory:
 		if isinstance(possible_values[attribute_index], list):
 			for value in possible_values[attribute_index]:
 				# Create a subset of examples that share the same value
-				subset =  DTFactory.shared_values(examples, attribute_index, value)
+				subset, subset_weights =  DTFactory.shared_values(examples, weights, attribute_index, value)
 
 				new_node = None
 
 				# Empty subset, add leaf for most common label
 				if len(subset) == 0:
-					new_node = Node(DTFactory.common_value(examples, label_index))
+					new_node = Node(DTFactory.common_value(examples, weights, label_index))
 				else:
-					new_node = DTFactory.id3(subset, new_names, new_values, gain_function, max_depth - 1)
+					new_node = DTFactory.id3(subset, subset_weights, new_names, new_values, gain_function, max_depth - 1)
 
 				new_root.add_child(new_node, value)
 
 		elif isinstance(possible_values[attribute_index], float):
 			# We will choose the median of the numerical values, then generate two subsets
 			threshold = possible_values[attribute_index]
-			subset1, subset2 = DTFactory.split_numerical(examples, attribute_index, threshold)
+			subset1, subset2, subset1_weights, subset2_weights = DTFactory.split_numerical(examples, weights, attribute_index, threshold)
 
 			if len(subset1) == 0:
-				lt_node = Node(DTFactory.common_value(examples, label_index))
+				lt_node = Node(DTFactory.common_value(examples, weights, label_index))
 			else:
-				lt_node = DTFactory.id3(subset1, new_names, new_values, gain_function, max_depth - 1)
+				lt_node = DTFactory.id3(subset1, subset1_weights, new_names, new_values, gain_function, max_depth - 1)
 
 			if len(subset2) == 0:
-				gt_node = Node(DTFactory.common_value(examples, label_index))
+				gt_node = Node(DTFactory.common_value(examples, weights, label_index))
 			else:
-				gt_node = DTFactory.id3(subset2, new_names, new_values, gain_function, max_depth - 1)
+				gt_node = DTFactory.id3(subset2, subset2_weights, new_names, new_values, gain_function, max_depth - 1)
 
 			new_root.add_child(lt_node, " < " + str(threshold))
 			new_root.add_child(gt_node, ">= " + str(threshold))
@@ -115,16 +120,16 @@ class DTFactory:
 
 	# Returns the most common value
 	@staticmethod
-	def common_value(examples, value_index):
+	def common_value(examples, weights, value_index):
 		track = {}
 
-		for example in examples:
-			value = example[value_index]
+		for i in range(0, len(examples)):
+			value = examples[i][value_index]
 
 			if value not in track:
-				track[value] = 1
+				track[value] = weights[i]
 			else:
-				track[value] += 1
+				track[value] += weights[i]
 
 		return max(track, key=track.get)
 
@@ -146,7 +151,7 @@ class DTFactory:
 
 	# Returns the best attribute from a list of examples using a gain function
 	@staticmethod
-	def best_attribute(examples, names, possible_values, gain_function):
+	def best_attribute(examples, weights, names, possible_values, gain_function):
 		attribute_gains = {}
 
 		for attribute in names:
@@ -156,139 +161,148 @@ class DTFactory:
 				# We must iterate over all possible values for the given attribute
 				if isinstance(possible_values[attribute_index], list):
 					for value in possible_values[attribute_index]:
-						subset = DTFactory.shared_values(examples, attribute_index, value)
-						proportion = float(len(subset)) / len(examples)
+						subset, subset_weights = DTFactory.shared_values(examples, weights, attribute_index, value)
+						proportion = sum(subset_weights) / sum(weights)
 
 						if attribute not in attribute_gains:
-							attribute_gains[attribute] = proportion * gain_function(subset, names.index("label"))
+							attribute_gains[attribute] = proportion * gain_function(subset, subset_weights, names.index("label"))
 						else:
-							attribute_gains[attribute] += proportion * gain_function(subset, names.index("label"))
+							attribute_gains[attribute] += proportion * gain_function(subset, subset_weights, names.index("label"))
 				elif isinstance(possible_values[attribute_index], float):
 					threshold = possible_values[attribute_index]
-					subset1, subset2 = DTFactory.split_numerical(examples, attribute_index, threshold)
+					subset1, subset2, subset1_weights, subset2_weights = DTFactory.split_numerical(examples, weights, attribute_index, threshold)
 					attribute_gains[attribute] = 0
-					attribute_gains[attribute] += (float(len(subset1)) / len(examples)) * gain_function(subset1, names.index("label"))
-					attribute_gains[attribute] += (float(len(subset2)) / len(examples)) * gain_function(subset2, names.index("label"))
+					attribute_gains[attribute] += (sum(subset1_weights) / sum(weights)) * gain_function(subset1, subset1_weights, names.index("label"))
+					attribute_gains[attribute] += (sum(subset2_weights) / sum(weights)) * gain_function(subset2, subset2_weights, names.index("label"))
 
 		return min(attribute_gains, key=attribute_gains.get)
 
 	# Returns the subset of examples that share the same attribute value
 	@staticmethod
-	def shared_values(examples, attribute_index, value):
+	def shared_values(examples, weights, attribute_index, value):
 		subset = []
-		for example in examples:
+		subset_weights = []
+		for i in range(0, len(examples)):
+			example = examples[i]
 			if str(example[attribute_index]) == str(value):
 				subset.append(example)
+				subset_weights.append(weights[i])
 
-		return subset
+		return subset, subset_weights
+
 
 	# Splits a set of numerical data using a threshold
 	@staticmethod
-	def split_numerical(examples, attribute_index, threshold):
+	def split_numerical(examples, weights, attribute_index, threshold):
 		lt_set = []
+		lt_weights = []
 		gt_set = []
+		gt_weights = []
 
-		for example in examples:
+		for i in range(0, len(examples)):
+			example = examples[i]
 			if float(example[attribute_index]) < threshold:
 				lt_set.append(example)
+				lt_weights.append(weights[i])
 			else:
 				gt_set.append(example)
+				gt_weights.append(weights[i])
 
-		return lt_set, gt_set
+		return lt_set, gt_set, lt_weights, gt_weights
 
 
 	# Creates a new tree using the entropy calculation
 	@staticmethod
-	def dt_entropy(examples, names, possible_values, max_depth):
+	def dt_entropy(examples, weights, names, possible_values, max_depth):
 
 		# Entropy gains function
-		def entropy(examples, label_index):
+		def entropy(examples, weights, label_index):
 			value_counts = {}
 
-			for example in examples:
-				value = example[label_index]
+			for i in range(0, len(examples)):
+				value = examples[i][label_index]
 
 				if value not in value_counts:
-					value_counts[value] = 1
+					value_counts[value] = weights[i]
 				else:
-					value_counts[value] += 1
+					value_counts[value] += weights[i]
 
 			e = 0
 			for count in value_counts.values():
 				if count != 0:
-					e += -1 * (float(count) / len(examples)) * math.log(float(count) / len(examples), 2)
+					e += -1 * (float(count) / sum(weights)) * math.log(float(count) / len(examples), 2)
 
 			return e
 
-		root = DTFactory.id3(examples, names, possible_values, entropy, max_depth)
+		root = DTFactory.id3(examples, weights, names, possible_values, entropy, max_depth)
 
 		return DecisionTree(root, names)
 
 	# Creates a new tree using the majority error calculation
 	@staticmethod
-	def dt_majority(examples, names, possible_values, max_depth):
+	def dt_majority(examples, weights, names, possible_values, max_depth):
 
 		# ME gains function
-		def majority_error(examples, label_index):
+		def majority_error(examples, weights, label_index):
 			value_counts = {}
 
 			if len(examples) == 0:
 				return 0 
 
 			# Count the label values
-			for example in examples:
-				value = example[label_index]
+			for i in range(0, len(examples)):
+				value = examples[i][label_index]
 
 				if value not in value_counts:
-					value_counts[value] = 1
+					value_counts[value] = weights[i]
 				else:
-					value_counts[value] += 1
+					value_counts[value] += weights[i]
 
 			majority_count = max(value_counts.values())
 
-			return 1 - (majority_count / len(examples))
+			return 1 - (majority_count / sum(weights))
 
 
-		root = DTFactory.id3(examples, names, possible_values, majority_error, max_depth)
+		root = DTFactory.id3(examples, weights, names, possible_values, majority_error, max_depth)
 
 		return DecisionTree(root, names)
 
 	# Creates a new tree using the gini index calculation
 	@staticmethod
-	def dt_gini(examples, names, possible_values, max_depth):
+	def dt_gini(examples, weights, names, possible_values, max_depth):
 
 		# Gini index gains function
-		def gini_index(examples, label_index):
+		def gini_index(examples, weights, label_index):
 			value_counts = {}
 
 			if len(examples) == 0:
 				return 0 
 
 			# Count the label values
-			for example in examples:
-				value = example[label_index]
+			for i in range(0, len(examples)):
+				value = examples[i][label_index]
 
 				if value not in value_counts:
-					value_counts[value] = 1
+					value_counts[value] = weights[i]
 				else:
-					value_counts[value] += 1
+					value_counts[value] += weights[i]
 
 			gi = 1
 			for count in value_counts.values():
 				if count != 0:
-					gi -= (float(count) / len(examples))**2
+					gi -= (float(count) / sum(weights))**2
 
 			return gi
 
 
-		root = DTFactory.id3(examples, names, possible_values, gini_index, max_depth)
+		root = DTFactory.id3(examples, weights, names, possible_values, gini_index, max_depth)
 
 		return DecisionTree(root, names)
 
 	# Does some preprocessing on the possibles values, using the median of the attribute if it is a 
 	# 'int' value or replacing unknowns if enabled
 	@staticmethod
-	def preprocess_data(examples, test_data, values, replace_unknowns):
+	def preprocess_data(examples, weights, test_data, values, replace_unknowns):
 		# Replace all ints with the median of the values
 		for i in range(len(values)):
 			if values[i] == int:
@@ -302,7 +316,7 @@ class DTFactory:
 			# Get a list of most common values
 			common_values = []
 			for i in range(len(examples[0])):
-				common_values.append(DTFactory.common_value(examples, i))
+				common_values.append(DTFactory.common_value(examples, weights, i))
 
 			# Replace unknowns in the training data
 			for example in examples:
@@ -438,7 +452,6 @@ class Link:
 	def height(self):
 		return self.node.height()
 
-
 # Imports data into a usable format.
 def import_data(name):
 	data = []
@@ -464,12 +477,12 @@ def compute_error(dt, test_data):
 
 
 # Runs all three types of gain functions on the data from 1 depth to max_depth
-def run_experiment(training_data, test_data, names, possible_values, max_depth):
+def run_experiment(training_data, training_weights, test_data, names, possible_values, max_depth, latex_format):
 	print "Running experiment for max depth of " + str(max_depth) + ":"
 	for i in range(max_depth):
-		entropy_dt = DTFactory.dt_entropy(training_data, names, possible_values, i + 1)
-		majority_dt = DTFactory.dt_majority(training_data, names, possible_values, i + 1)
-		gini_dt = DTFactory.dt_gini(training_data, names, possible_values, i + 1)
+		entropy_dt = DTFactory.dt_entropy(training_data, training_weights, names, possible_values, i + 1)
+		majority_dt = DTFactory.dt_majority(training_data, training_weights, names, possible_values, i + 1)
+		gini_dt = DTFactory.dt_gini(training_data, training_weights, names, possible_values, i + 1)
 		trng_entropy_err = round(100 * compute_error(entropy_dt, training_data), 2)
 		test_entropy_err = round(100 * compute_error(entropy_dt, test_data), 2)
 		trng_majority_err = round(100 * compute_error(majority_dt, training_data), 2)
@@ -480,7 +493,7 @@ def run_experiment(training_data, test_data, names, possible_values, max_depth):
 		if (i + 1) != entropy_dt.root.height() - 1:
 			print "Max tree depth reached!"
 
-		if LATEX_FORMAT == False:
+		if latex_format == False:
 			print "\tDepth " + str(i + 1) + ":" 
 			print "\t\t Training: Entropy-> " + str(trng_entropy_err) + " Majority-> " + str(trng_majority_err) + " Gini-> " + str(trng_gini_err)
 			print "\t\t Test: Entropy-> " + str(test_entropy_err) + " Majority-> " + str(test_majority_err) + " Gini-> " + str(test_gini_err)

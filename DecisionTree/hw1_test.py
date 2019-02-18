@@ -1,6 +1,6 @@
 # HW1 test code
 
-import decision_tree
+import decision_tree as DT
 
 
 examples = []
@@ -36,12 +36,12 @@ possible_values2 = [["A", "B", "C"], int, [0, 1, 2]]
 # Some definition stuff
 LATEX_FORMAT = False	  # Set to true allows easy pasting into Latex
 
-car_examples = import_data("car_train.csv")
-car_test = import_data("car_test.csv")
+car_examples = DT.import_data("car_train.csv")
+car_test = DT.import_data("car_test.csv")
 car_names = ["buying", "maint", "doors", "persons", "lug_boot", "safety", "label"]
 car_values = [["vhigh", "high", "med", "low", "beep"], ["vhigh", "high", "med", "low"], [2, 3, 4, "5more"], [2, 4, "more"], ["small", "med", "big"], ["low", "med", "high"], ["unacc", "acc", "good", "vgood"]]
-bank_examples = import_data("bank_train.csv")
-bank_test = import_data("bank_test.csv")
+bank_examples = DT.import_data("bank_train.csv")
+bank_test = DT.import_data("bank_test.csv")
 bank_names = ["age", "job", "marital", "education", "default", "balance", "housing", "loan", "contact", "day", "month", "duration", "campaign", "pdays", "previous", "poutcome", "label"]
 bank_values = []
 bank_values.append(int)
@@ -62,13 +62,16 @@ bank_values.append(int)
 bank_values.append(["unknown", "other", "failure", "success"])
 bank_values.append(["yes", "no"])
 
+car_weights = [0.5] * len(car_examples)
+bank_weights = [0.5] * len(bank_examples)
+
 print("Car Data Set")
-run_experiment(car_examples, car_test, car_names, car_values, 6)
+DT.run_experiment(car_examples, car_weights, car_test, car_names, car_values, 6, LATEX_FORMAT)
 
 print("Bank Data Set (With Unknowns)")
-DTFactory.preprocess_data(bank_examples, bank_test, bank_values, False)
-run_experiment(bank_examples, bank_test, bank_names, bank_values, 16)
+DT.DTFactory.preprocess_data(bank_examples, bank_weights, bank_test, bank_values, False)
+DT.run_experiment(bank_examples, bank_weights, bank_test, bank_names, bank_values, 16, LATEX_FORMAT)
 
 print("Bank Data Set (Without Unknowns)")
-DTFactory.preprocess_data(bank_examples, bank_test, bank_values, True)
-run_experiment(bank_examples, bank_test, bank_names, bank_values, 16)
+DT.DTFactory.preprocess_data(bank_examples, bank_weights, bank_test, bank_values, True)
+DT.run_experiment(bank_examples, bank_weights, bank_test, bank_names, bank_values, 16, LATEX_FORMAT)
