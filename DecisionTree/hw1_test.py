@@ -62,16 +62,13 @@ bank_values.append(int)
 bank_values.append(["unknown", "other", "failure", "success"])
 bank_values.append(["yes", "no"])
 
-car_weights = [0.5] * len(car_examples)
-bank_weights = [0.5] * len(bank_examples)
-
 print("Car Data Set")
-DT.run_experiment(car_examples, car_weights, car_test, car_names, car_values, 6, LATEX_FORMAT)
+DT.run_experiment(car_examples, car_test, car_names, car_values, 6, LATEX_FORMAT)
 
 print("Bank Data Set (With Unknowns)")
-DT.DTFactory.preprocess_data(bank_examples, bank_weights, bank_test, bank_values, False)
-DT.run_experiment(bank_examples, bank_weights, bank_test, bank_names, bank_values, 16, LATEX_FORMAT)
+DT.preprocess_data(bank_examples, bank_test, bank_values, False)
+DT.run_experiment(bank_examples, bank_test, bank_names, bank_values, 16, LATEX_FORMAT)
 
 print("Bank Data Set (Without Unknowns)")
-DT.DTFactory.preprocess_data(bank_examples, bank_weights, bank_test, bank_values, True)
-DT.run_experiment(bank_examples, bank_weights, bank_test, bank_names, bank_values, 16, LATEX_FORMAT)
+DT.preprocess_data(bank_examples, bank_test, bank_values, True)
+DT.run_experiment(bank_examples, bank_test, bank_names, bank_values, 16, LATEX_FORMAT)
