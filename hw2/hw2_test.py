@@ -58,10 +58,10 @@ forest = None
 # Load the concrete data
 concrete_training = np.array(DT.import_data("concrete_train.csv"), dtype='float64')
 print(concrete_training.shape[0])
-training_x = np.append(concrete_training[:,0:7], np.full((concrete_training.shape[0], 1), 1.0), 1)
+training_x = np.append(concrete_training[:,0:7], np.ones((concrete_training.shape[0], 1), dtype='float64'), 1)
 training_y = concrete_training[:,7].flatten()
 concrete_test = np.array(DT.import_data("concrete_test.csv"), dtype='float64')
-test_x = np.append(concrete_test[:,0:7], np.full((concrete_test.shape[0], 1), 1.0), 1)
+test_x = np.append(concrete_test[:,0:7], np.ones((concrete_test.shape[0], 1), dtype='float64'), 1)
 test_y = concrete_test[:,7].flatten()
 
 # Running batch gradient descent
@@ -77,7 +77,7 @@ print "Test Set MSE: " + str(LR.squared_error(w, test_x, test_y) / concrete_test
 # Solving weight vector analytically
 x = np.transpose(training_x)
 y = training_y
-w = np.matmul(np.matmul(np.linalg.inv(np.matmul(x, np.transpose(x))), x), y)
+w = np.dot(np.dot(np.linalg.inv(np.dot(x, np.transpose(x))), x), y)
 print 'Computed weight vector: ' + str(w / np.linalg.norm(w))
 print "Training Set MSE: " + str(LR.squared_error(np.reshape(w, (8)), training_x, training_y) / concrete_training.shape[0])
 print "Test Set MSE: " + str(LR.squared_error(np.reshape(w, (8)), test_x, test_y) / concrete_test.shape[0])  
@@ -109,8 +109,8 @@ bag_variance = 0
 
 for i in range(len(bank_test)):
 	test_ex = bank_test[i]
-	tree_predictions = np.full(((len(bank_test))), -1, dtype='float')
-	bag_predictions = np.full((len(bank_test)), -1, dtype='float')
+	tree_predictions = np.ones(((len(bank_test))), dtype='float') * -1.0
+	bag_predictions = np.ones((len(bank_test)), dtype='float') * -1.0
 
 	for j in range(len(bags)):
 		p = bags[j].hypotheses[0].find_label(test_ex, i)
@@ -170,8 +170,8 @@ forest_variance = 0
 
 for i in range(len(bank_test)):
 	test_ex = bank_test[i]
-	tree_predictions = np.full(((len(bank_test))), -1, dtype='float')
-	forest_predictions = np.full((len(bank_test)), -1, dtype='float')
+	tree_predictions = np.ones(((len(bank_test))), dtype='float') * -1.0
+	forest_predictions = np.ones((len(bank_test)), dtype='float') * -1.0
 
 	for j in range(len(forests)):
 		p = forests[j].hypotheses[0].find_label(test_ex, i)
@@ -199,3 +199,4 @@ for i in range(len(bank_test)):
 
 print "\nBias: " + str(bias / len(bank_test)) + " Variance: " + str(variance / len(bank_test))
 print "Forest Bias: " + str(forest_bias / len(bank_test)) + " Forest Variance: " + str(forest_variance / len(bank_test))
+

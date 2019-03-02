@@ -4,27 +4,35 @@
 # Description: Implements the ID3 algorithm for creating decision trees
 
 import math
+import random
 
 # A decision tree. Stores the root node and allows finding labels for a given example.
 # Also stores the attribute names in "names"
 class DecisionTree(object):
 
-	__slots__ = ['root', 'names']
+	__slots__ = ['root', 'names', 'cached_labels']
 	def __init__(self, root, names):
 		self.root = root
 		self.names = names
+		self.cached_labels = {}
 
 	def __str__(self):
 		return str(self.root)
 
 	# Determines the label of the given example
 	# Note that a node's value refers to the tested attribute if it is not a leaf node
-	def find_label(self, example):
-		current_node = self.root
-		current_attribute = example[self.names.index(current_node.value)]
+	def find_label(self, example, ex_id):
+		if ex_id in self.cached_labels:
+			return self.cached_labels[ex_id]
 
+		current_node = self.root
+
+		# Check if root is actually a leaf
 		if current_node.is_leaf():
+			self.cached_labels[ex_id] = current_node.value
 			return current_node.value
+
+		current_attribute = example[self.names.index(current_node.value)]
 
 		while current_attribute is not None:
 			current_node = current_node.next_node(current_attribute)
@@ -32,6 +40,7 @@ class DecisionTree(object):
 			if not current_node:
 				return None
 			elif current_node.is_leaf():
+				self.cached_labels[ex_id] = current_node.value
 				return current_node.value
 
 			current_attribute = example[self.names.index(current_node.value)]
@@ -166,6 +175,119 @@ def id3_weighted_stump(examples, weights, names, possible_values, gain_function)
 			gt_node = Node(common_weighted_value(examples, label_index))
 		else:
 			gt_node = Node(common_weighted_value(subset2, subset2_weights, label_index))
+
+		new_root.add_child(lt_node, " < " + str(threshold))
+		new_root.add_child(gt_node, ">= " + str(threshold))
+	else:
+		print("Invalid possible value")
+		return None
+
+	return new_root
+
+# Entropy gains function
+def entropy_function(examples, label_index):
+	value_counts = {}
+
+	for example in examples:
+		value = example[label_index]
+
+		if value not in value_counts:
+			value_counts[value] = 1
+		else:
+			value_counts[value] += 1
+
+	e = 0.0
+	for count in value_counts.values():
+		if count != 0:
+			e += -1 * (float(count) / len(examples)) * math.log(float(count) / len(examples), 2)
+
+	return e
+
+# ID3 algorithm that uses the random forest process
+def id3_random_forest(examples, names, possible_values, max_depth, attribute_num):
+	label_index = names.index("label")
+
+	# Check for all same label examples
+	same_label = None
+	for example in examples:
+		if same_label is None:
+			same_label = example[label_index]
+		elif same_label != example[label_index]:
+			same_label = None
+			break
+	if same_label is not None:
+		return Node(same_label)
+
+	# If max depth is reached, or names is exhausted, return leaf with most common label
+	if max_depth == 0 or len(list(filter(None, names))) == 1:
+		return Node(common_value(examples, label_index))
+
+	# Pick (attribute_num) features randomly.
+	i = 0
+	picked_features = []
+	while i < attribute_num:
+		feature = random.choice(names)
+		if (len(list(filter(None, names))) - len(picked_features)) == 1:
+			break
+		if feature != '' and feature != 'label' and feature not in picked_features:
+			i += 1
+			picked_features.append(feature)
+
+	new_names = list(names)
+	new_values = list(possible_values)
+
+	# Create a temporary vector
+	for i in range(len(names)):
+		if names[i] not in picked_features and names[i] != 'label':
+			new_names[i] = ""
+			new_values[i] = []
+
+	# Now begin the splitting process by choosing best attribute
+	attribute, split_subsets = best_attribute(examples, new_names, new_values, entropy_function)
+	attribute_index = names.index(attribute)
+	new_root = Node(attribute)
+
+	# Create new names/values lists without the attribute
+	new_names = list(names)
+	new_values = list(possible_values)
+	new_names[attribute_index] = ""
+	new_values[attribute_index] = []
+
+	# Get the split subsets
+	subsets = split_subsets[attribute]
+
+	# If value type is a list (and thus a characteristic) treat it normally
+	if type(possible_values[attribute_index]) == list:
+
+		for value in possible_values[attribute_index]:
+			# Create a subset of examples that share the same value
+			subset = subsets[value]
+
+			new_node = None
+
+			# Empty subset, add leaf for most common label
+			if len(subset) == 0:
+				new_node = Node(common_value(examples, label_index))
+			else:
+				new_node = id3_random_forest(subset, new_names, new_values, max_depth - 1, attribute_num)
+
+			new_root.add_child(new_node, value)
+
+	elif type(possible_values[attribute_index]) == float:
+		# We will choose the median of the numerical values, then generate two subsets
+		threshold = possible_values[attribute_index]
+		subset1 = subsets[0]
+		subset2 = subsets[1]
+
+		if len(subset1) == 0:
+			lt_node = Node(common_value(examples, label_index))
+		else:
+			lt_node = id3_random_forest(subset1, new_names, new_values, max_depth - 1, attribute_num)
+
+		if len(subset2) == 0:
+			gt_node = Node(common_value(examples, label_index))
+		else:
+			gt_node = id3_random_forest(subset2, new_names, new_values, max_depth - 1, attribute_num)
 
 		new_root.add_child(lt_node, " < " + str(threshold))
 		new_root.add_child(gt_node, ">= " + str(threshold))
@@ -578,25 +700,25 @@ def import_data(name):
 	return data
 
 # Finds the error rate of a decision tree on test data
-def compute_error(dt, test_data):
+def compute_error(dt, test_data, id_range):
 	errors = 0
 
 	# Iterate over all examples
-	for example in test_data:
-		label = dt.find_label(example)
-		if label != example[-1]:
+	for i in range(len(test_data)):
+		label = dt.find_label(test_data[i], id_range[i])
+		if label != test_data[i][-1]:
 			errors += 1
 
 	return float(errors) / len(test_data)
 
 # Finds the error rate using weighted data
-def compute_weighted_error(dt, test_data, weights):
+def compute_weighted_error(dt, test_data, weights, id_range):
 	errors = 0
 
 	# Iterate over all examples
 	for i in range(len(test_data)):
 		example = test_data[i]
-		label = dt.find_label(example)
+		label = dt.find_label(example, id_range[i])
 		if label != example[-1]:
 			errors += weights[i]
 
@@ -605,17 +727,19 @@ def compute_weighted_error(dt, test_data, weights):
 
 # Runs all three types of gain functions on the data from 1 depth to max_depth
 def run_experiment(training_data, test_data, names, possible_values, max_depth, latex_format):
+	training_ids = range(len(examples))
+	test_ids = range(len(examples), len(test_data))
 	print "Running experiment for max depth of " + str(max_depth) + ":"
 	for i in range(max_depth):
 		entropy_dt = dt_entropy(training_data, names, possible_values, i + 1)
 		majority_dt = dt_majority(training_data, names, possible_values, i + 1)
 		gini_dt = dt_gini(training_data, names, possible_values, i + 1)
-		trng_entropy_err = round(100 * compute_error(entropy_dt, training_data), 2)
-		test_entropy_err = round(100 * compute_error(entropy_dt, test_data), 2)
-		trng_majority_err = round(100 * compute_error(majority_dt, training_data), 2)
-		test_majority_err = round(100 * compute_error(majority_dt, test_data), 2)
-		trng_gini_err = round(100 * compute_error(gini_dt, training_data), 2)
-		test_gini_err = round(100 * compute_error(gini_dt, test_data), 2)
+		trng_entropy_err = round(100 * compute_error(entropy_dt, training_data, training_ids), 2)
+		test_entropy_err = round(100 * compute_error(entropy_dt, test_data, test_ids), 2)
+		trng_majority_err = round(100 * compute_error(majority_dt, training_data, training_ids), 2)
+		test_majority_err = round(100 * compute_error(majority_dt, test_data, test_ids), 2)
+		trng_gini_err = round(100 * compute_error(gini_dt, training_data, training_ids), 2)
+		test_gini_err = round(100 * compute_error(gini_dt, test_data, test_ids), 2)
 
 		if (i + 1) != entropy_dt.root.height() - 1:
 			print "Max tree depth reached!"
