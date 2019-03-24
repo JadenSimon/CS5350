@@ -41,6 +41,10 @@ functions. The functions return a weight vector when they either hit the max num
 below the threshold.
 
 
+Perceptron:
+The perceptron library contains three different versions: 'standard', voted, and averaged. Each one can be called with paramteters: data, r, T, print_data. Data is simply the matrix of data with x and y values, r is the learning rate, and T is the number of epochs. Setting print_data to True will output additional information every step. All functions return the weight vector found by the algorithm. Note that 1s are automatically appended to the training data to find b. Also note that y is expected to be either 0 or 1.
+
+
 
 
 
