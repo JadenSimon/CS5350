@@ -42,8 +42,16 @@ below the threshold.
 
 
 Perceptron:
-The perceptron library contains three different versions: 'standard', voted, and averaged. Each one can be called with paramteters: data, r, T, print_data. Data is simply the matrix of data with x and y values, r is the learning rate, and T is the number of epochs. Setting print_data to True will output additional information every step. All functions return the weight vector found by the algorithm. Note that 1s are automatically appended to the training data to find b. Also note that y is expected to be either 0 or 1.
 
+The perceptron library contains three different versions: 'standard', voted, and averaged. Each one can be called with paramteters: data, r, T, print_data. Data is simply the matrix of data with x and y values, r is the learning rate, and T is the number of epochs. Setting print_data to True will output additional information every step. All functions return the weight vector found by the algorithm. Note that 1s are automatically appended to the training data to find b. Also note that y is expected to be either 0 or 1. The dual form of perceptron uses a kernel function learn, and returns a error count vector instead
+of the normal weight vector.
+
+
+SVM:
+
+Contains algorithms for learning both primal and dual SVMs. The primal algorithm expects a data matrix, a starting learning rate, a learning rate function that accepts the current learning rate and current epoch as inputs, the max number of epochs, and
+the hyperparamter C. It returns a learned weight vector w already containing the bias. The dual version also takes a data matrix,
+a kernel function k, the maximum number of epochs, and a hyperparameter C. This function then returns the learned alpha vector. Both functions have a final boolean parameter that prints additional information when set to True. 
 
 
 
