@@ -1,4 +1,4 @@
-This is a machine learning library developed by Jaden Simon for CS5350/6350 in University of Utah
+This is a machine learning library developed by Jaden Simon for CS5350/6350 at the University of Utah
 
 Decision Tree:
 
