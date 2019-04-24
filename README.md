@@ -61,6 +61,7 @@ See linear_regression.py for similiar use cases.
 
 
 Neural Networks:
+
 The neural nets library has two classes: Layer and Network. The Network class is composed of sequential feed-forward layers.
 Layers are created with the input and output dimension as well as the activation function and its derivative. Each layer then is
 added to the Network in the order desired. No dimension checking is performed, this must be done by the user. To train the network, call the 'train_sgd' method with the desired training dataset. To score the network, use the 'score' method with
