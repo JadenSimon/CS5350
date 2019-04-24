@@ -54,6 +54,19 @@ the hyperparamter C. It returns a learned weight vector w already containing the
 a kernel function k, the maximum number of epochs, and a hyperparameter C. This function then returns the learned alpha vector. Both functions have a final boolean parameter that prints additional information when set to True. 
 
 
+Logistic Regression:
+
+Contains logistic_regression (MAP) and logistic_regression_mle. Both take the same parameters and return the found weight vector.
+See linear_regression.py for similiar use cases.
+
+
+Neural Networks:
+The neural nets library has two classes: Layer and Network. The Network class is composed of sequential feed-forward layers.
+Layers are created with the input and output dimension as well as the activation function and its derivative. Each layer then is
+added to the Network in the order desired. No dimension checking is performed, this must be done by the user. To train the network, call the 'train_sgd' method with the desired training dataset. To score the network, use the 'score' method with
+any dataset and probability.
+
+
 
 
 
